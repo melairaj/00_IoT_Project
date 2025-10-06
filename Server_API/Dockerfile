@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir fastapi sqlalchemy pydantic uvicorn
 EXPOSE 8000
 
 # Run the FastAPI app with Uvicorn
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "server_api:app", "--host", "0.0.0.0", "--port", "8000"]
