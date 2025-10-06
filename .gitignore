@@ -1,0 +1,19 @@
+# Node
+node_modules/
+dist/
+build/
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# ESP /
+*.bin
+*.elf
+*.hex
+
+# System
+.DS_Store
+.idea/
+.vscode/
