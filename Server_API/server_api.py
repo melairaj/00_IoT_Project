@@ -1,3 +1,7 @@
+# ======================
+# Author : ELAIRAJ MOHAMED
+# ======================
+
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, create_engine
 from sqlalchemy.orm import relationship, sessionmaker, declarative_base, Session
