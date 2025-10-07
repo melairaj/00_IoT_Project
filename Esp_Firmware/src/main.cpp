@@ -4,11 +4,15 @@
 #include <HTTPClient.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP280.h>
+#include <Preferences.h>
+
+// Pour stocker l'ID du device de façon persistante
+Preferences preferences;
 
 // Configuration WiFi et API
 const char* WIFI_SSID = "Bbox-AFDEC9DC";
 const char* WIFI_PASS = "A1A4D12564176D79E19F1DA4DCF2E9";
-const char* API_BASE_URL = "http://192.168.1.100:8000"; // À adapter selon votre serveur
+const char* API_BASE_URL = "http://192.168.1.173:8000"; // À adapter selon votre serveur
 
 // Configuration du device
 const char* DEVICE_NAME = "ESP32-BMP280";
@@ -52,6 +56,8 @@ bool createDevice() {
       int end = response.indexOf(",", start);
       if (end == -1) end = response.indexOf("}", start);
       device_id = response.substring(start, end).toInt();
+      // Sauvegarder l'ID dans la mémoire persistante
+      preferences.putInt("device_id", device_id);
       Serial.printf("Device créé avec ID: %d\n", device_id);
       http.end();
       return true;
@@ -93,8 +99,16 @@ void setup() {
   Serial.begin(115200);
   delay(100);
 
+  // Initialiser les préférences
+  preferences.begin("iot-device", false);
+  // Récupérer l'ID du device s'il existe déjà
+  device_id = preferences.getInt("device_id", -1);
+  if (device_id > 0) {
+    Serial.printf("Device ID récupéré: %d\n", device_id);
+  }
+
   // Initialisation du BMP280
-  if (!bmp.begin(0x76)) {
+  if (!bmp.begin(0x77)) {
     Serial.println("BMP280 non trouvé à l'adresse 0x76. Essayez 0x77 ou vérifiez le câblage.");
   } else {
     bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,
@@ -119,11 +133,15 @@ void setup() {
     Serial.print("Adresse IP: ");
     Serial.println(WiFi.localIP());
     
-    // Créer le device sur l'API
-    if (createDevice()) {
-      Serial.println("Device enregistré avec succès");
+    // Créer le device sur l'API seulement si on n'a pas déjà un ID
+    if (device_id < 0) {
+      if (createDevice()) {
+        Serial.println("Device enregistré avec succès");
+      } else {
+        Serial.println("Erreur lors de l'enregistrement du device");
+      }
     } else {
-      Serial.println("Erreur lors de l'enregistrement du device");
+      Serial.println("Device déjà enregistré, utilisation de l'ID existant");
     }
   } else {
     Serial.println("\nÉchec de connexion au WiFi");
@@ -133,26 +151,28 @@ void setup() {
 void loop() {
   // Lecture et envoi toutes les 10 secondes
   if (millis() - lastReadMs >= 10000) {
-    // Vérifier la connexion WiFi
-    if (WiFi.status() == WL_CONNECTED && device_id > 0) {
-      // Lecture des capteurs
-      lastTemp = bmp.readTemperature();
-      lastPressure = bmp.readPressure() / 100.0F;  // conversion en hPa
-      lastAltitude = bmp.readAltitude(1013.25);    // altitude approximative
+    if (bmp.begin(0x77)) {
+      // Vérifier la connexion WiFi
+      if (WiFi.status() == WL_CONNECTED && device_id > 0) {
+        // Lecture des capteurs
+        lastTemp = bmp.readTemperature();
+        lastPressure = bmp.readPressure() / 100.0F;  // conversion en hPa
+        lastAltitude = bmp.readAltitude(1013.25);    // altitude approximative
 
-      // Affichage local
-      Serial.printf("\nTempérature : %.2f °C\n", lastTemp);
-      Serial.printf("Pression : %.2f hPa\n", lastPressure);
-      Serial.printf("Altitude : %.2f m\n", lastAltitude);
+        // Affichage local
+        Serial.printf("\nTempérature : %.2f °C\n", lastTemp);
+        Serial.printf("Pression : %.2f hPa\n", lastPressure);
+        Serial.printf("Altitude : %.2f m\n", lastAltitude);
 
-      // Envoi des mesures
-      bool tempOk = sendMeasure("temperature", lastTemp);
-      bool pressOk = sendMeasure("pression", lastPressure);
-      bool altOk = sendMeasure("altitude", lastAltitude);
+        // Envoi des mesures
+        bool tempOk = sendMeasure("temperature", lastTemp);
+        bool pressOk = sendMeasure("pression", lastPressure);
+        bool altOk = sendMeasure("altitude", lastAltitude);
 
-      Serial.printf("Envoi des mesures: %s\n", 
-        (tempOk && pressOk && altOk) ? "OK" : "Erreur partielle");
+        Serial.printf("Envoi des mesures: %s\n", 
+          (tempOk && pressOk && altOk) ? "OK" : "Erreur partielle");
+      }
+      lastReadMs = millis();
     }
-    lastReadMs = millis();
   }
 }
