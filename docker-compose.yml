@@ -10,3 +10,14 @@ services:
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
     restart: always
+
+  nextjs-app:
+    build: ./Web_App
+    container_name: nextjs-app
+    ports:
+      - "8080:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://banana.local:8000
+    depends_on:
+      - fastapi-app
+    restart: always
