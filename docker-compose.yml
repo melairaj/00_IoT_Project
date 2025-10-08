@@ -17,7 +17,7 @@ services:
     ports:
       - "8080:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://banana.local:8000
+      - NEXT_PUBLIC_API_URL=http://192.168.1.173:8000
     depends_on:
       - fastapi-app
     restart: always
