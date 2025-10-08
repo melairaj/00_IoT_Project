@@ -27,7 +27,7 @@ float lastTemp = 0.0;
 float lastPressure = 0.0;
 float lastAltitude = 0.0;
 
-// Fonction pour créer le device sur l'API
+// Fonction pour trouver ou créer le device sur l'API
 bool createDevice() {
   // Obtenir l'adresse MAC
   uint8_t mac[6];
@@ -35,17 +35,44 @@ bool createDevice() {
   sprintf(DEVICE_MAC, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   
   HTTPClient http;
-  String url = String(API_BASE_URL) + "/devices/";
   
-  // Créer le JSON pour la requête
+  // D'abord, chercher si le device existe déjà
+  String getUrl = String(API_BASE_URL) + "/devices/";
+  http.begin(getUrl);
+  int httpCode = http.GET();
+  
+  if (httpCode == 200) {
+    String response = http.getString();
+    // Chercher notre MAC dans la liste des devices
+    if (response.indexOf(String(DEVICE_MAC)) > 0) {
+      // Device trouvé, extraire son ID
+      int macStart = response.indexOf(String(DEVICE_MAC));
+      int idStart = response.lastIndexOf("\"id\":", macStart);
+      if (idStart > 0) {
+        idStart += 5; // Longueur de "\"id\":"
+        int idEnd = response.indexOf(",", idStart);
+        if (idEnd == -1) idEnd = response.indexOf("}", idStart);
+        device_id = response.substring(idStart, idEnd).toInt();
+        if (device_id > 0) {
+          preferences.putInt("device_id", device_id);
+          Serial.printf("Device existant trouvé avec ID: %d\n", device_id);
+          http.end();
+          return true;
+        }
+      }
+    }
+  }
+  
+  // Si on n'a pas trouvé le device, le créer
+  String postUrl = String(API_BASE_URL) + "/devices/";
   String payload = "{\"nom\":\"" + String(DEVICE_NAME) + "\",";
   payload += "\"mac_address\":\"" + String(DEVICE_MAC) + "\",";
   payload += "\"location\":\"" + String(DEVICE_LOCATION) + "\"}";
 
-  http.begin(url);
+  http.begin(postUrl);
   http.addHeader("Content-Type", "application/json");
   
-  int httpCode = http.POST(payload);
+  httpCode = http.POST(payload);
   
   if (httpCode == 200 || httpCode == 201) {
     String response = http.getString();
@@ -64,7 +91,7 @@ bool createDevice() {
     }
   }
   
-  Serial.printf("Erreur création device: %d\n", httpCode);
+  Serial.printf("Erreur création/recherche device: %d\n", httpCode);
   http.end();
   return false;
 }
@@ -95,9 +122,24 @@ bool sendMeasure(const char* type, float value) {
   return success;
 }
 
+// Fonction pour effacer les données stockées dans la NVM
+void clearNVM() {
+  preferences.begin("iot-device", false);
+  preferences.clear();
+  preferences.end();
+  Serial.println("NVM effacée avec succès");
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
+
+  // Effacer la NVM si le bouton BOOT est maintenu pendant le démarrage
+  if (digitalRead(0) == LOW) { // Le bouton BOOT est sur le GPIO 0
+    Serial.println("Bouton BOOT détecté - Effacement de la NVM...");
+    clearNVM();
+    delay(1000);
+  }
 
   // Initialiser les préférences
   preferences.begin("iot-device", false);

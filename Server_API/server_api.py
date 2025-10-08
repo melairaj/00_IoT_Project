@@ -99,6 +99,18 @@ Base.metadata.create_all(bind=engine)
 # ======================
 @app.post("/devices/", response_model=DeviceRead)
 def create_device(device: DeviceCreate, db: Session = Depends(get_db)):
+    # Check if device with this MAC already exists
+    existing_device = db.query(Device).filter(Device.mac_address == device.mac_address).first()
+    if existing_device:
+        # Update existing device with new information
+        for key, value in device.dict().items():
+            if value is not None:  # Only update non-null values
+                setattr(existing_device, key, value)
+        db.commit()
+        db.refresh(existing_device)
+        return existing_device
+    
+    # If no existing device, create new one
     db_device = Device(**device.dict())
     db.add(db_device)
     db.commit()
